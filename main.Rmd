@@ -42,6 +42,9 @@ head(histdata)
 ```
 
 
+# Task 2
+
+
 ```{r}
 grouped_avg <- histdata %>%
   group_by(Year, Month, SettlementPoint) %>%
@@ -50,11 +53,18 @@ grouped_avg <- histdata %>%
 write.csv(grouped_avg, "AveragePriceByMonth.csv")
 
 ```
+#Task 3 
+
+
+This task may have some computational issues with the hourly returns, but, I did my best to continue through the problem.
+
+
 ```{r}
 hourly_volatility <- histdata %>%
   select(Year, Hour, Price, SettlementPoint, Day, Month) %>%
   filter(Price > 0, str_detect(SettlementPoint, "HB_")) %>%
   group_by(Year, SettlementPoint, Day, Month) %>%
+  #This is where I think I went wrong, HB_PAN only had a single hour for     some days, so I ahd to exclude it.
   filter(n() > 1) %>%
   mutate(hourlyreturns = log(Price) - log(lag(Price))) %>%
   drop_na() %>%
@@ -63,6 +73,9 @@ hourly_volatility <- histdata %>%
     
 write.csv(hourly_volatility, "HourlyVolatilityByYear.csv")
 ```
+Task 3
+
+
 ```{r}
 maxvolatility <- hourly_volatility %>%
   group_by(Year) %>%
@@ -73,7 +86,11 @@ maxvolatility <- hourly_volatility %>%
 write.csv(maxvolatility, "MaxVolatilityByYear.csv")
 ```
 
+
+Task 4
+
 ```{r}
+#Function to format data for a given settlement point
 write_formatted_csv <- function(Settlement, Data) {
   
 
@@ -93,12 +110,13 @@ write_formatted_csv <- function(Settlement, Data) {
   filename = paste("formattedSpotHistory/spot_", Settlement, ".csv")
   write.csv(formatteddata, filename)
 }
-```
 
-```{r}
+#Iterate through all settlements
 all_settlements <- unique(histdata$SettlementPoint)
 lapply(all_settlements, write_formatted_csv, histdata)
 ```
+Bonus Task 1
+
 ```{r}
 grouped_avg %>%
   mutate(ym = paste(Year, Month, sep = "-"),
@@ -114,6 +132,8 @@ grouped_avg %>%
        title = "Monthly Average Electricity Prices Over Time",
        subtitle = "For Hubs")
 ```
+
+
 ```{r}
 grouped_avg %>%
   mutate(ym = paste(Year, Month, sep = "-"),
@@ -130,6 +150,9 @@ grouped_avg %>%
        subtitle = "For Load Zones")
 ```
 
+Bonus Task 2
+
+
 ```{r}
 hourly_volatility %>%
   ggplot(aes(x = Year,
@@ -142,7 +165,10 @@ hourly_volatility %>%
        subtitle = "For Hubs")
 
 ```
+Bonus Task 3
+
 ```{r}
+#Function to find the shape profile for a given settlement point
 shapeprofile <- function(Settlement, Data) {
   shapedata <- Data %>%
     filter(SettlementPoint == Settlement) %>%
@@ -154,9 +180,13 @@ shapeprofile <- function(Settlement, Data) {
   filename = paste("hourlyShapeProfiles/profile_", Settlement, ".csv")
   write.csv(shapedata, filename)
 }
+
+#Iterate through all settlements
 lapply(all_settlements, shapeprofile, histdata)
 ```
 
+
+I did not have an opportunity to get to the open-ended analysis. I was planning on making an animated graph with Shiny that would convey similar information to the graphs in Bonus Task 1 in a more creative and interactive way.
 
 
 
