@@ -4,17 +4,159 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, messages = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, messages = FALSE, warning = FALSE)
 ```
 
 
 
-```{r}
+```{r message = FALSE}
 library(tidyverse)
 ```
 
+# Task 1
+
 ```{r}
-ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width)) + 
-  geom_point()
+datanames <- list.files(pattern ="*ERCOT*", full.names = TRUE)
+csvdata = lapply(datanames, read_csv)
+
+histdata2016 <- data.frame(csvdata[1])
+histdata2017 <- data.frame(csvdata[2])
+histdata2018 <- data.frame(csvdata[3])
+histdata2019 <- data.frame(csvdata[4])
 ```
+
+
+```{r}
+histdataframe <- rbind(histdata2016, histdata2017, histdata2018, histdata2019)
+```
+
+
+```{r}
+histdata <- histdataframe %>%
+  mutate(Date = lubridate::ymd_hms(Date),
+         Year = lubridate::year(Date),
+         Month = lubridate::month(Date),
+         Day = lubridate::day(Date),
+         Hour = lubridate::hour(Date))
+head(histdata)
+```
+
+
+```{r}
+grouped_avg <- histdata %>%
+  group_by(Year, Month, SettlementPoint) %>%
+  summarise(AveragePrice = mean(Price, na.rm = T))
+
+write.csv(grouped_avg, "AveragePriceByMonth.csv")
+
+```
+```{r}
+hourly_volatility <- histdata %>%
+  select(Year, Hour, Price, SettlementPoint, Day, Month) %>%
+  filter(Price > 0, str_detect(SettlementPoint, "HB_")) %>%
+  group_by(Year, SettlementPoint, Day, Month) %>%
+  filter(n() > 1) %>%
+  mutate(hourlyreturns = log(Price) - log(lag(Price))) %>%
+  drop_na() %>%
+  group_by(Year, SettlementPoint) %>%
+  summarise(HourlyVolatility = sd(hourlyreturns, na.rm = T))
+    
+write.csv(hourly_volatility, "HourlyVolatilityByYear.csv")
+```
+```{r}
+maxvolatility <- hourly_volatility %>%
+  group_by(Year) %>%
+  mutate(maxvol = max(HourlyVolatility)) %>%
+  filter(HourlyVolatility == maxvol) %>%
+  select(Year, SettlementPoint, HourlyVolatility)
+
+write.csv(maxvolatility, "MaxVolatilityByYear.csv")
+```
+
+```{r}
+write_formatted_csv <- function(Settlement, Data) {
+  
+
+  formatteddata <- Data %>%
+    filter(SettlementPoint == Settlement) %>%
+    mutate(Date = lubridate::date(Date),
+         Hour = Hour + 1) %>%
+    select(Price, SettlementPoint, Date, Hour)%>%
+    group_by(Date, SettlementPoint) %>%
+    pivot_wider(names_from = Hour,
+              values_from = Price)
+  new_names = c("SettlementPoint", 
+              "Date", 
+              paste("X", colnames(formatteddata[3:24]), sep =""))
+
+  colnames(formatteddata) = new_names
+  filename = paste("formattedSpotHistory/spot_", Settlement, ".csv")
+  write.csv(formatteddata, filename)
+}
+```
+
+```{r}
+all_settlements <- unique(histdata$SettlementPoint)
+lapply(all_settlements, write_formatted_csv, histdata)
+```
+```{r}
+grouped_avg %>%
+  mutate(ym = paste(Year, Month, sep = "-"),
+         Date = lubridate::ym(ym),
+         Date = format(as.Date(Date)), "%Y-%m") %>%
+  filter(str_detect(SettlementPoint, "HB_")) %>%
+  ggplot(aes(x = as.Date(Date), 
+             y = AveragePrice, 
+             color = SettlementPoint)) +
+  geom_line() + 
+  labs(x = "Date",
+       y = "Monthly Average Price",
+       title = "Monthly Average Electricity Prices Over Time",
+       subtitle = "For Hubs")
+```
+```{r}
+grouped_avg %>%
+  mutate(ym = paste(Year, Month, sep = "-"),
+         Date = lubridate::ym(ym),
+         Date = format(as.Date(Date)), "%Y-%m") %>%
+  filter(!str_detect(SettlementPoint, "HB_")) %>%
+  ggplot(aes(x = as.Date(Date), 
+             y = AveragePrice, 
+             color = SettlementPoint)) +
+  geom_line() + 
+  labs(x = "Date",
+       y = "Monthly Average Price",
+       title = "Monthly Average Electricity Prices Over Time",
+       subtitle = "For Load Zones")
+```
+
+```{r}
+hourly_volatility %>%
+  ggplot(aes(x = Year,
+             y = HourlyVolatility,
+             color = SettlementPoint)) +
+  geom_line() +
+  labs(x = "Year",
+       y = "Hourly Volatility",
+       title = "Hourly Volatility By year",
+       subtitle = "For Hubs")
+
+```
+```{r}
+shapeprofile <- function(Settlement, Data) {
+  shapedata <- Data %>%
+    filter(SettlementPoint == Settlement) %>%
+    group_by(Month, Day) %>%
+    mutate(avgprice = mean(Price),
+           standprice = Price - (avgprice - 1)) %>%
+    group_by(Day, Month, Hour) %>%
+    summarise(ShapeProfValue = mean(standprice))
+  filename = paste("hourlyShapeProfiles/profile_", Settlement, ".csv")
+  write.csv(shapedata, filename)
+}
+lapply(all_settlements, shapeprofile, histdata)
+```
+
+
+
 
