@@ -104,7 +104,7 @@ write_formatted_csv <- function(Settlement, Data) {
               values_from = Price)
   new_names = c("SettlementPoint", 
               "Date", 
-              paste("X", colnames(formatteddata[3:24]), sep =""))
+              paste("X", colnames(formatteddata[3:27]), sep =""))
 
   colnames(formatteddata) = new_names
   filename = paste("formattedSpotHistory/spot_", Settlement, ".csv")
